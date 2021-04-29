@@ -15,6 +15,21 @@ Parameters:
   PublicSubnet2ID:
     Type: String
     Default: vpc-devcl-expedicion-PublicSubnet2ID
+  DBConnectionString:
+    Type: String
+    Default: DBCluster-Deploy-DNSName
+  InputQueueName:
+    Type: String
+    Default: controlGuardiaInput.fifo
+  OutputQueueName:
+    Type: String
+    Default: controlGuardiaSap.fifo
+  InputTopicName:
+    Type: String
+    Default: controlGuardiaInputTopic.fifo
+  OutputTopicName:
+    Type: String
+    Default: controlGuardiaSapTopic.fifo
 Resources:
   LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
@@ -37,18 +52,7 @@ Resources:
                 Action:
                   - 'logs:*'
                 Resource: 'arn:aws:logs:*:*:*'
-        - PolicyName: allowSqsTransporteQueue
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'sqs:ReceiveMessage'
-                  - 'sqs:DeleteMessage'
-                  - 'sqs:GetQueueAttributes'
-                  - 'sqs:ChangeMessageVisibility'
-                Resource: !GetAtt TransporteQueue.Arn
-        - PolicyName: allowSqsTranspaletaQueue
+        - PolicyName: allowSqsOutputQueue
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -59,7 +63,31 @@ Resources:
                   - 'sqs:DeleteMessage'
                   - 'sqs:GetQueueAttributes'
                   - 'sqs:ChangeMessageVisibility'
-                Resource: !GetAtt TraspaletaQueue.Arn
+                Resource: !GetAtt 
+                  - OutputQueue
+                  - Arn
+        - PolicyName: allowSqsInputQueue
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sqs:SendMessage'
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                  - 'sqs:ChangeMessageVisibility'
+                Resource: !GetAtt 
+                  - InputQueue
+                  - Arn
+        - PolicyName: AllowSNSPublish
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sns:*'
+                Resource: !Ref SNSOutputTopic
         - PolicyName: allowInsertLambdaIntoEC2
           PolicyDocument:
             Version: 2012-10-17
@@ -70,7 +98,7 @@ Resources:
                   - 'ec2:DescribeNetworkInterfaces'
                   - 'ec2:DetachNetworkInterface'
                   - 'ec2:DeleteNetworkInterface'
-                Resource: "*"
+                Resource: '*'
     Metadata:
       'AWS::CloudFormation::Designer':
         id: 9bae41bc-aa79-42f2-b2e5-ed67fc1cf97e
@@ -79,13 +107,11 @@ Resources:
     Properties:
       DestinationConfig:
         OnSuccess:
-          Destination: !GetAtt TraspaletaQueue.Arn
-        OnFailure:
-          Destination: !GetAtt TraspaletaQueue.Arn
+          Destination: !Ref SNSOutputTopic
       FunctionName: !Ref TransporteLF
       MaximumEventAgeInSeconds: 300
       MaximumRetryAttempts: 1
-      Qualifier: '$LATEST' 
+      Qualifier: $LATEST
     Metadata:
       'AWS::CloudFormation::Designer':
         id: fadde285-d345-4613-99a8-1751ead408d2
@@ -94,10 +120,12 @@ Resources:
     Properties:
       Code:
         S3Bucket: !ImportValue 
-            'Fn::Sub': '${buildBucketName}'
+          'Fn::Sub': '${buildBucketName}'
         S3Key: !Ref buildObjectKey
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt 
+        - LambdaExecutionRole
+        - Arn
       Runtime: nodejs12.x
       Timeout: 60
       MemorySize: 256
@@ -110,43 +138,133 @@ Resources:
             'Fn::Sub': '${PublicSubnet1ID}'
           - !ImportValue 
             'Fn::Sub': '${PublicSubnet2ID}'
+      Environment:
+        Variables:
+          INPUT_QUEUE_NAME: !Ref InputQueueName
+          INPUT_AWS_ID: !Ref 'AWS::AccountId'
+          REGION_AWS: !Ref 'AWS::Region'
+          HOST_AWS: !Join 
+            - .
+            - - !Ref 'AWS::Region'
+              - !Ref 'AWS::URLSuffix'
+          PORT_AWS: 443
+          HOST_DB: !ImportValue 
+            'Fn::Sub': '${DBConnectionString}'
     Metadata:
       'AWS::CloudFormation::Designer':
         id: 1ca521b4-312e-49b0-9af1-887ae4a1c588
-  TransporteLFVersion:
-    Type: 'AWS::Lambda::Version'
-    Properties:
-      FunctionName: !Ref TransporteLF
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: 87e88b57-d690-4cfb-83f6-f6532d2be228
   LambdaFunctionEventSourceMapping:
     Type: 'AWS::Lambda::EventSourceMapping'
     Properties:
       BatchSize: 10
       Enabled: true
-      EventSourceArn: !GetAtt TransporteQueue.Arn
-      FunctionName:
-        'Fn::Join':
-          - ':'
-          - - 'Fn::GetAtt':
-                - TransporteLF
-                - Arn
-            - '$LATEST'
+      EventSourceArn: !GetAtt 
+        - InputQueue
+        - Arn
+      FunctionName: !Join 
+        - ':'
+        - - !GetAtt 
+            - TransporteLF
+            - Arn
+          - $LATEST
     Metadata:
       'AWS::CloudFormation::Designer':
         id: 099b81c3-569a-4f6f-9165-5f71353d5237
-  TraspaletaQueue:
+  SNSOutputTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: !Ref OutputTopicName
+      FifoTopic: true
+      ContentBasedDeduplication: false
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: e65be933-3aef-479a-a486-d0e0ae5999d1
+  OutputQueuePolicy:
+    Type: 'AWS::SQS::QueuePolicy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - 'sqs:SendMessage'
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !Ref SNSOutputTopic
+      Queues:
+        - !Ref OutputQueue
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 3a54ce70-3a70-4f14-bacb-84a0df5bc450
+  SNSOutputSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      TopicArn: !Ref SNSOutputTopic
+      Endpoint: !GetAtt 
+        - OutputQueue
+        - Arn
+      Protocol: sqs
+      RawMessageDelivery: 'false'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: daa67db0-4b51-4337-8e79-d57a61185b60
+  OutputQueue:
     Type: 'AWS::SQS::Queue'
     Properties:
+      QueueName: !Ref OutputQueueName
+      FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: 120
     Metadata:
       'AWS::CloudFormation::Designer':
-        id: 23ae9a05-4079-483f-9848-d3f04f92259c
-  TransporteQueue:
+        id: a7735237-76f6-4bc1-b16a-90ce30ff723a
+  SNSInputTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: !Ref InputTopicName
+      FifoTopic: true
+      ContentBasedDeduplication: false
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7495ad6c-4607-466a-8931-be8929231670
+  InputQueuePolicy:
+    Type: 'AWS::SQS::QueuePolicy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - 'sqs:SendMessage'
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !Ref SNSInputTopic
+      Queues:
+        - !Ref InputQueue
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b6d58cf4-867e-42d5-ba2d-207dc96d76d9
+  InputSNSSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      TopicArn: !Ref SNSInputTopic
+      Endpoint: !GetAtt 
+        - InputQueue
+        - Arn
+      Protocol: sqs
+      RawMessageDelivery: 'false'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c74bb64b-8edf-4b5c-bfc2-3587799abf26
+  InputQueue:
     Type: 'AWS::SQS::Queue'
     Properties:
+      QueueName: !Ref InputQueueName
+      FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: 120
     Metadata:
@@ -159,7 +277,7 @@ Metadata:
         width: 60
         height: 60
       position:
-        x: 120
+        x: 150
         'y': 330
       z: 1
       embeds: []
@@ -169,7 +287,7 @@ Metadata:
         height: 60
       position:
         x: 420
-        'y': 210
+        'y': 190
       z: 1
       embeds: []
     1ca521b4-312e-49b0-9af1-887ae4a1c588:
@@ -190,15 +308,6 @@ Metadata:
         'y': 330
       z: 1
       embeds: []
-    23ae9a05-4079-483f-9848-d3f04f92259c:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 710
-        'y': 330
-      z: 1
-      embeds: []
     fadde285-d345-4613-99a8-1751ead408d2:
       size:
         width: 60
@@ -208,14 +317,75 @@ Metadata:
         'y': 330
       z: 1
       embeds: []
-    87e88b57-d690-4cfb-83f6-f6532d2be228:
+    a7735237-76f6-4bc1-b16a-90ce30ff723a:
       size:
         width: 60
         height: 60
       position:
-        x: 420
-        'y': 430
+        x: 960
+        'y': 330
+      z: 1
+      embeds: []
+    e65be933-3aef-479a-a486-d0e0ae5999d1:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 690
+        'y': 330
+      z: 1
+      embeds: []
+    7495ad6c-4607-466a-8931-be8929231670:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -70
+        'y': 330
+      z: 1
+      embeds: []
+    daa67db0-4b51-4337-8e79-d57a61185b60:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 810
+        'y': 330
       z: 1
       embeds: []
       isassociatedwith:
-        - 1ca521b4-312e-49b0-9af1-887ae4a1c588
+        - e65be933-3aef-479a-a486-d0e0ae5999d1
+    c74bb64b-8edf-4b5c-bfc2-3587799abf26:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 50
+        'y': 330
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 7495ad6c-4607-466a-8931-be8929231670
+    b6d58cf4-867e-42d5-ba2d-207dc96d76d9:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 50
+        'y': 240
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 4d62a24f-6c0f-4754-935f-303e295ec680
+    3a54ce70-3a70-4f14-bacb-84a0df5bc450:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 810
+        'y': 240
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 4d62a24f-6c0f-4754-935f-303e295ec680
+        - a7735237-76f6-4bc1-b16a-90ce30ff723a

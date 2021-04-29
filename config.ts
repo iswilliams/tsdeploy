@@ -1,6 +1,6 @@
-export const aws_sdk =  {
+export const aws_sdk = {
     ip: process.env.HOST_AWS || '192.168.1.106',
-    port : process.env.PORT_AWS || '4566',
+    port: process.env.PORT_AWS || '4566',
     region: process.env.REGION_AWS || 'REGION',
     accessKeyId: process.env.ACCESS_KEY_ID || 'na',
     secretAccessKey: process.env.ACCESS_KEY_SECRET || 'na'
@@ -14,7 +14,7 @@ export const database = {
 }
 
 export const sqsConfig = {
-    queueName: process.env.INPUT_QUEUE_NAME || 'input_sap',
+    queueName: process.env.INPUT_QUEUE_NAME || 'input_sap.fifo',
     awsId: process.env.INPUT_AWS_ID || "000000000000"
 }
 
