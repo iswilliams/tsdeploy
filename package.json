@@ -1,0 +1,32 @@
+{
+  "name": "post-controlguardia",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --coverage",
+    "tsc": "tsc",
+    "statuscolas": "awslocal sqs get-queue-attributes --queue-url http://localhost:4566/000000000000/control_guardia.fifo --attribute-names All && awslocal sqs get-queue-attributes --queue-url http://localhost:4566/000000000000/input_sap.fifo --attribute-names All",
+    "demo": "awslocal sqs send-message --queue-url http://localhost:4566/000000000000/control_guardia.fifo --message-body file://control_guardia.json --message-group-id 1",
+    "update": "npm run tsc && node zip.js && awslocal lambda update-function-code --function-name ProcessControlGuardia --zip-file fileb://controlGuardia.zip",
+    "lambdainit": "npm run tsc && node zip.js && awslocal lambda create-function --function-name ProcessControlGuardia --zip-file fileb://controlGuardia.zip --handler index.handler --runtime nodejs12.x --role whatever",
+    "colasinit": " awslocal sqs create-queue --queue-name control_guardia.fifo --attributes FifoQueue=true && awslocal sqs create-queue --queue-name input_sap.fifo --attributes FifoQueue=true && awslocal lambda create-event-source-mapping --function-name ProcessControlGuardia  --batch-size 10 --event-source-arn arn:aws:sqs:us-east-1:000000000000:control_guardia.fifo"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^5.3.0",
+    "aws-sdk": "^2.876.0",
+    "json-validation": "^1.0.4",
+    "mysql": "^2.18.1"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.75",
+    "@types/mysql": "^2.15.18",
+    "@types/node": "^14.14.37",
+    "@types/jest": "^26.0.22",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.5.4",
+    "typescript": "^4.2.4"
+  }
+}
