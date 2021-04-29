@@ -5,7 +5,7 @@ Parameters:
     Default: TPE-INIT-S3BucketLF
   buildObjectKey:
     Type: String
-    Default: ingresotransporte.zip
+    Default: ControlGuardia.zip
   SGLambdaFunction:
     Type: String
     Default: TPE-INIT-LFSG
@@ -132,7 +132,7 @@ Resources:
           - - 'Fn::GetAtt':
                 - TransporteLF
                 - Arn
-            - '1'
+            - '$LATEST'
     Metadata:
       'AWS::CloudFormation::Designer':
         id: 099b81c3-569a-4f6f-9165-5f71353d5237
