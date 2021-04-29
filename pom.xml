@@ -10,7 +10,7 @@
   <name>TPE-MS-Transporte</name>
 
 <properties>
-  <sonar.projectKey>DemoProjectISW</sonar.projectKey>
+  <sonar.projectKey>TPE-MS-Transporte</sonar.projectKey>
   <sonar.organization>iswilliams</sonar.organization>
   <sonar.sources>.</sonar.sources>
   <sonar.language>ts</sonar.language>
