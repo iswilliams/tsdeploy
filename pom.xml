@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.sonarqube</groupId>
+  <artifactId>sonarscanner-maven-basic</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  
+  <name>TPE-MS-Transporte</name>
+
+<properties>
+  <sonar.projectKey>DemoProjectISW</sonar.projectKey>
+  <sonar.organization>iswilliams</sonar.organization>
+  <sonar.sources>.</sonar.sources>
+  <sonar.language>ts</sonar.language>
+  <sonar.javascript.lcov.reportPaths>coverage/lcov.info</sonar.javascript.lcov.reportPaths>
+  <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+  <sonar.exclusions>
+   dist/**,
+   test/**,
+   coverage/**,
+   sonar*/**,
+   apache*/**,
+   zip.js
+  </sonar.exclusions>
+</properties>
+
+</project>

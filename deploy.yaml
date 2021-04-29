@@ -1,0 +1,221 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  buildBucketName:
+    Type: String
+    Default: TPE-INIT-S3BucketLF
+  buildObjectKey:
+    Type: String
+    Default: ingresotransporte.zip
+  SGLambdaFunction:
+    Type: String
+    Default: TPE-INIT-LFSG
+  PublicSubnet1ID:
+    Type: String
+    Default: vpc-devcl-expedicion-PublicSubnet1ID
+  PublicSubnet2ID:
+    Type: String
+    Default: vpc-devcl-expedicion-PublicSubnet2ID
+Resources:
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: allowLambdaLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:*'
+                Resource: 'arn:aws:logs:*:*:*'
+        - PolicyName: allowSqsTransporteQueue
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                  - 'sqs:ChangeMessageVisibility'
+                Resource: !GetAtt TransporteQueue.Arn
+        - PolicyName: allowSqsTranspaletaQueue
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sqs:SendMessage'
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                  - 'sqs:ChangeMessageVisibility'
+                Resource: !GetAtt TraspaletaQueue.Arn
+        - PolicyName: allowInsertLambdaIntoEC2
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DetachNetworkInterface'
+                  - 'ec2:DeleteNetworkInterface'
+                Resource: "*"
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 9bae41bc-aa79-42f2-b2e5-ed67fc1cf97e
+  asyncconfig:
+    Type: 'AWS::Lambda::EventInvokeConfig'
+    Properties:
+      DestinationConfig:
+        OnSuccess:
+          Destination: !GetAtt TraspaletaQueue.Arn
+        OnFailure:
+          Destination: !GetAtt TraspaletaQueue.Arn
+      FunctionName: !Ref TransporteLF
+      MaximumEventAgeInSeconds: 300
+      MaximumRetryAttempts: 1
+      Qualifier: !GetAtt TransporteLFVersion.Version
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: fadde285-d345-4613-99a8-1751ead408d2
+  TransporteLF:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        S3Bucket: !ImportValue 
+            'Fn::Sub': '${buildBucketName}'
+        S3Key: !Ref buildObjectKey
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue 
+            'Fn::Sub': '${SGLambdaFunction}'
+        SubnetIds:
+          - !ImportValue 
+            'Fn::Sub': '${PublicSubnet1ID}'
+          - !ImportValue 
+            'Fn::Sub': '${PublicSubnet2ID}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 1ca521b4-312e-49b0-9af1-887ae4a1c588
+  TransporteLFVersion:
+    Type: 'AWS::Lambda::Version'
+    Properties:
+      FunctionName: !Ref TransporteLF
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 87e88b57-d690-4cfb-83f6-f6532d2be228
+  LambdaFunctionEventSourceMapping:
+    Type: 'AWS::Lambda::EventSourceMapping'
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt TransporteQueue.Arn
+      FunctionName:
+        'Fn::Join':
+          - ':'
+          - - 'Fn::GetAtt':
+                - TransporteLF
+                - Arn
+            - '1'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 099b81c3-569a-4f6f-9165-5f71353d5237
+  TraspaletaQueue:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      DelaySeconds: 0
+      VisibilityTimeout: 120
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 23ae9a05-4079-483f-9848-d3f04f92259c
+  TransporteQueue:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      DelaySeconds: 0
+      VisibilityTimeout: 120
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 4d62a24f-6c0f-4754-935f-303e295ec680
+Metadata:
+  'AWS::CloudFormation::Designer':
+    4d62a24f-6c0f-4754-935f-303e295ec680:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 120
+        'y': 330
+      z: 1
+      embeds: []
+    9bae41bc-aa79-42f2-b2e5-ed67fc1cf97e:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 210
+      z: 1
+      embeds: []
+    1ca521b4-312e-49b0-9af1-887ae4a1c588:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 330
+      z: 1
+      embeds: []
+    099b81c3-569a-4f6f-9165-5f71353d5237:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 270
+        'y': 330
+      z: 1
+      embeds: []
+    23ae9a05-4079-483f-9848-d3f04f92259c:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 710
+        'y': 330
+      z: 1
+      embeds: []
+    fadde285-d345-4613-99a8-1751ead408d2:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 570
+        'y': 330
+      z: 1
+      embeds: []
+    87e88b57-d690-4cfb-83f6-f6532d2be228:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 430
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 1ca521b4-312e-49b0-9af1-887ae4a1c588
