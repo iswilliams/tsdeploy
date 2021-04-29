@@ -85,7 +85,7 @@ Resources:
       FunctionName: !Ref TransporteLF
       MaximumEventAgeInSeconds: 300
       MaximumRetryAttempts: 1
-      Qualifier: !GetAtt TransporteLFVersion.Version
+      Qualifier: '$LATEST' 
     Metadata:
       'AWS::CloudFormation::Designer':
         id: fadde285-d345-4613-99a8-1751ead408d2
