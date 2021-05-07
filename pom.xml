@@ -7,10 +7,10 @@
   <artifactId>sonarscanner-maven-basic</artifactId>
   <version>1.0-SNAPSHOT</version>
   
-  <name>TPE-MS-Transporte</name>
+  <name>TPE-FE-TorreControl</name>
 
 <properties>
-  <sonar.projectKey>TPE-MS-Transporte</sonar.projectKey>
+  <sonar.projectKey>TPE-FE-TorreControl</sonar.projectKey>
   <sonar.organization>iswilliams</sonar.organization>
   <sonar.sources>.</sonar.sources>
   <sonar.language>ts</sonar.language>
